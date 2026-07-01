@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chuyển đổi CSV sang JSONL cho Gemini</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        .box { border: 2px dashed #ccc; padding: 20px; text-align: center; background: #f9f9f9; cursor: pointer; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; font-size: 16px; cursor: pointer; margin-top: 15px; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h2>Đổi File CSV Sang JSONL Huấn Luyện AI</h2>
+    <p>Chọn file <code>.csv</code> của bạn (Cột 1 là câu hỏi, Cột 2 là câu trả lời):</p>
+    <div class="box" onclick="document.getElementById('csvFile').click()">
+        <input type="file" id="csvFile" accept=".csv" style="display:none">
+        <span id="fileName">Nhấp vào đây để chọn file CSV</span>
+    </div>
+    <center><button id="convertBtn" style="display:none;">Chuyển đổi & Tải xuống .jsonl</button></center>
+
+    <script>
+        const fileInput = document.getElementById('csvFile');
+        const fileNameSpan = document.getElementById('fileName');
+        const convertBtn = document.getElementById('convertBtn');
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                fileNameSpan.innerText = e.target.files[0].name;
+                convertBtn.style.display = 'block';
+            }
+        });
+
+        convertBtn.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const lines = text.split(/\r?\n/);
+                let jsonlOutput = "";
+
+                for (let i = 0; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue; // Bỏ qua dòng trống
+                    
+                    // Xử lý tách dấu phẩy (CSV) đơn giản
+                    // Nếu dữ liệu có dấu phẩy phức tạp trong ngoặc kép, nên dùng thư viện, nhưng cách này chạy tốt với text cơ bản
+                    const columns = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    
+                    if (columns.length >= 2) {
+                        let userText = columns[0].replace(/^"|"$/g, '').trim();
+                        let modelText = columns[1].replace(/^"|"$/g, '').trim();
+
+                        // Bỏ qua dòng tiêu đề nếu có (ví dụ: "Câu hỏi, Câu trả lời" hoặc "User, Model")
+                        if (i === 0 && (userText.toLowerCase().includes("user") || userText.toLowerCase().includes("câu hỏi"))) {
+                            continue;
+                        }
+
+                        // Cấu trúc JSONL chuẩn xác cho Gemini 1.5 Tuning
+                        const jsonRow = {
+                            contents: [
+                                { role: "user", parts: [{ text: userText }] },
+                                { role: "model", parts: [{ text: modelText }] }
+                            ]
+                        };
+                        jsonlOutput += JSON.stringify(jsonRow) + "\n";
+                    }
+                }
+
+                // Tạo file để tải xuống
+                const blob = new Blob([jsonlOutput], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "dataset_huon_luyen.jsonl";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            reader.readAsText(file, 'UTF-8');
+        });
+    </script>
+</body>
+</html>
